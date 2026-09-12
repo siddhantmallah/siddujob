@@ -27,6 +27,12 @@ export type SourceContext = {
   maxPerQuery: number;
   /** Boards discovered from the sponsor register, merged with the env lists. */
   discoveredBoards?: { greenhouse: string[]; lever: string[]; ashby: string[] };
+  /**
+   * Date.now() past which no new network work should START. Serverless
+   * functions are killed at a hard limit, and a killed run saves nothing, so
+   * every source checks this and returns what it has.
+   */
+  deadline?: number;
 };
 
 export type JobSource = {

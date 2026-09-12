@@ -1,6 +1,6 @@
 import { requireAuth } from "@/lib/auth";
 import { getProfile } from "@/db";
-import { Shell } from "@/components/Nav";
+import { Shell, PageHead } from "@/components/Nav";
 import { ActionForm, SubmitButton } from "@/components/Forms";
 import { saveProfile } from "@/app/actions";
 
@@ -35,11 +35,10 @@ export default async function ProfilePage() {
 
   return (
     <Shell current="/profile">
-      <h1 className="mb-1 text-[15px] font-bold">Your profile</h1>
-      <p className="mb-5 text-[13px]" style={{ color: "var(--muted)" }}>
-        Everything here feeds matching and cover letters. The CV text is the single source of truth —
-        nothing gets claimed on your behalf that is not in it.
-      </p>
+      <PageHead
+        title="Your profile"
+        subtitle="Everything here feeds matching and cover letters. The CV text is the single source of truth — nothing is claimed on your behalf that is not in it."
+      />
 
       <ActionForm action={saveProfile} className="space-y-5">
         <section className="panel p-5">

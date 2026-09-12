@@ -52,6 +52,16 @@ export const settings = pgTable("settings", {
   blockedCompanies: jsonb("blocked_companies").$type<string[]>().notNull().default([]),
   /** string[] — hard-block a job if its title/description contains these */
   blockedKeywords: jsonb("blocked_keywords").$type<string[]>().notNull().default([]),
+  /**
+   * Discovery is sliced across runs so a single serverless invocation always
+   * finishes inside its time limit. This is the rotating position in the
+   * search-term list.
+   */
+  ingestCursor: integer("ingest_cursor").notNull().default(0),
+  /** Name of the task currently running, so the UI can show progress. */
+  runningTask: text("running_task"),
+  runningSince: timestamp("running_since", { withTimezone: true }),
+  lastRunSummary: text("last_run_summary"),
   lastIngestAt: timestamp("last_ingest_at", { withTimezone: true }),
   lastApplyAt: timestamp("last_apply_at", { withTimezone: true }),
   lastInboxAt: timestamp("last_inbox_at", { withTimezone: true }),

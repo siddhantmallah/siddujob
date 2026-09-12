@@ -37,3 +37,4 @@ vercel-env.txt
 .vercel
 .vercel
 fix-vercel-env.cjs
+.claude/

@@ -33,6 +33,9 @@ export async function fetchAllSources(
   const settled = await Promise.all(
     sources.map(async (source): Promise<{ jobs: RawJob[]; result: SourceResult }> => {
       const started = Date.now();
+      if (ctx.deadline && Date.now() > ctx.deadline) {
+        return { jobs: [], result: { source: source.name, count: 0, ms: 0, error: "skipped — out of time" } };
+      }
       try {
         const jobs = await source.fetch(ctx);
         return {

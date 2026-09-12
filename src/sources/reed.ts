@@ -50,6 +50,7 @@ export const reed: JobSource = {
       // search targets, so it is worth paging rather than taking the first
       // hundred and moving on.
       for (let page = 0; page < REED_PAGES; page++) {
+        if (ctx.deadline && Date.now() > ctx.deadline) return out;
         const params = new URLSearchParams({
           keywords: query,
           resultsToTake: "100",

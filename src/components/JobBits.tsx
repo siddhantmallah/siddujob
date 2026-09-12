@@ -1,14 +1,53 @@
 import type { Job } from "@/db";
 
-export function ScorePill({ score }: { score: number | null }) {
-  if (score == null) return <span className="pill pill-flat">unscored</span>;
-  const cls = score >= 78 ? "pill-good" : score >= 55 ? "pill-warn" : "pill-flat";
-  return <span className={`pill ${cls}`} style={{ minWidth: 34, justifyContent: "center" }}>{score}</span>;
+/**
+ * The score as a ring rather than a number in a box.
+ *
+ * The job list is scanned, not read. A filled arc is legible at a glance from
+ * across the row, which a two-digit number never is.
+ */
+export function ScoreRing({ score, size = 38 }: { score: number | null; size?: number }) {
+  if (score == null) {
+    return (
+      <div
+        className="grid shrink-0 place-items-center rounded-full text-[10px] font-semibold"
+        style={{
+          width: size, height: size,
+          border: "1.5px dashed var(--border-strong)", color: "var(--faint)",
+        }}
+        title="Not scored yet"
+      >
+        –
+      </div>
+    );
+  }
+
+  const tone = score >= 78 ? "var(--good)" : score >= 55 ? "var(--warn)" : "var(--faint)";
+  const angle = Math.round((Math.max(0, Math.min(100, score)) / 100) * 360);
+
+  return (
+    <div
+      className="relative grid shrink-0 place-items-center rounded-full"
+      style={{
+        width: size,
+        height: size,
+        background: `conic-gradient(${tone} ${angle}deg, var(--panel-2) ${angle}deg)`,
+      }}
+      title={`Fit score ${score} of 100`}
+    >
+      <div
+        className="grid place-items-center rounded-full"
+        style={{ width: size - 7, height: size - 7, background: "var(--panel)" }}
+      >
+        <span className="tnum text-[12.5px] font-bold" style={{ color: tone }}>{score}</span>
+      </div>
+    </div>
+  );
 }
 
 /**
- * The visa badge. This is the field you look at first: green means the employer
- * can legally hire you, red means they cannot no matter how good the match is.
+ * The visa badge — the field to read first. Green means the employer can
+ * legally hire you; red means they cannot, however good the match is.
  */
 export function VisaPill({ job }: { job: Job }) {
   if (job.sponsorStatus === "not_required") {
@@ -23,10 +62,18 @@ export function VisaPill({ job }: { job: Job }) {
         </span>
       );
     }
+    if (job.sponsorStatus === "likely") {
+      return (
+        <span
+          className="pill pill-warn"
+          title={`Matched "${job.sponsorMatchedName}" by name prefix — confirm on the advert`}
+        >
+          likely sponsor
+        </span>
+      );
+    }
     return (
-      <span className="pill pill-bad" title={job.visaNote ?? undefined}>
-        not a sponsor
-      </span>
+      <span className="pill pill-bad" title={job.visaNote ?? undefined}>not a sponsor</span>
     );
   }
 
@@ -41,14 +88,16 @@ export function VisaPill({ job }: { job: Job }) {
 
 export function SalaryText({ job }: { job: Job }) {
   if (job.salaryMin == null && job.salaryMax == null) {
-    return <span style={{ color: "var(--muted)" }}>salary not stated</span>;
+    return <span style={{ color: "var(--faint)" }}>salary not stated</span>;
   }
-  const symbol = job.currency === "GBP" ? "£" : job.currency === "EUR" ? "€" : job.currency === "USD" ? "$" : "";
-  const fmt = (n: number) => `${symbol}${Math.round(n).toLocaleString()}`;
+  const symbol =
+    job.currency === "GBP" ? "£" : job.currency === "EUR" ? "€" : job.currency === "USD" ? "$" : "";
+  const fmt = (n: number) => `${symbol}${Math.round(n).toLocaleString("en-GB")}`;
+
   if (job.salaryMin != null && job.salaryMax != null && job.salaryMin !== job.salaryMax) {
-    return <span>{fmt(job.salaryMin)}–{fmt(job.salaryMax)}</span>;
+    return <span className="tnum">{fmt(job.salaryMin)}–{fmt(job.salaryMax)}</span>;
   }
-  return <span>{fmt((job.salaryMax ?? job.salaryMin)!)}</span>;
+  return <span className="tnum">{fmt((job.salaryMax ?? job.salaryMin)!)}</span>;
 }
 
 export function SourceTag({ source }: { source: string }) {
@@ -56,9 +105,25 @@ export function SourceTag({ source }: { source: string }) {
   return (
     <span
       className="pill pill-flat"
-      title={direct ? "Straight from the employer's ATS — no recruiter in between" : undefined}
+      title={direct ? "Straight from the employer's own careers system" : undefined}
     >
-      {source}{direct ? " ·  direct" : ""}
+      {source}
     </span>
   );
+}
+
+/** Country code as a readable label rather than a bare two-letter code. */
+const COUNTRY_NAMES: Record<string, string> = {
+  gb: "UK", ie: "Ireland", de: "Germany", nl: "Netherlands", fr: "France",
+  es: "Spain", pl: "Poland", pt: "Portugal", it: "Italy", se: "Sweden",
+  dk: "Denmark", be: "Belgium", at: "Austria", cz: "Czechia", fi: "Finland",
+  lu: "Luxembourg", ch: "Switzerland", no: "Norway",
+};
+
+export function placeLabel(job: Job): string {
+  const country = COUNTRY_NAMES[job.country] ?? job.country.toUpperCase();
+  if (!job.location) return country || "location unknown";
+  // Adverts often already include the country; do not print it twice.
+  if (country && job.location.toLowerCase().includes(country.toLowerCase())) return job.location;
+  return country ? `${job.location}, ${country}` : job.location;
 }

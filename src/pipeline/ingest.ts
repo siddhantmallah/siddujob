@@ -1,5 +1,5 @@
-import { inArray } from "drizzle-orm";
-import { db, jobs, getProfile, getSettings, logEvent, type NewJob } from "@/db";
+import { inArray, eq } from "drizzle-orm";
+import { db, jobs, settings as settingsTable, getProfile, getSettings, logEvent, type NewJob } from "@/db";
 import { fetchAllSources, type SourceResult } from "@/sources";
 import { confirmedBoards } from "./atsdiscovery";
 import { jobHash, normalizeCompany, extractContactEmail, truncate, toInt } from "@/lib/utils";
@@ -19,6 +19,8 @@ const DEFAULT_QUERIES = [
 const DEFAULT_COUNTRIES = ["gb", "ie", "de", "nl"];
 
 export type IngestSummary = {
+  /** Which search terms this run covered. */
+  queries: string[];
   fetched: number;
   inserted: number;
   duplicates: number;
@@ -26,7 +28,8 @@ export type IngestSummary = {
   sources: SourceResult[];
 };
 
-export async function runIngest(): Promise<IngestSummary> {
+/** @param opts.budgetMs wall-clock budget for network fetching. */
+export async function runIngest(opts: { budgetMs?: number } = {}): Promise<IngestSummary> {
   const profile = await getProfile();
   const settings = await getSettings();
 
@@ -36,11 +39,34 @@ export async function runIngest(): Promise<IngestSummary> {
   // Boards confirmed against the sponsor register feed in automatically.
   const discoveredBoards = await confirmedBoards();
 
+  /**
+   * Only a slice of the search terms runs per invocation.
+   *
+   * A full sweep measured 114 seconds, which a serverless function kills at 60
+   * — and a killed run stores nothing at all. Rotating through the terms a few
+   * at a time means every run completes and commits its results, and with the
+   * scheduler firing every 30 minutes the whole list is still covered several
+   * times a day.
+   */
+  const QUERIES_PER_RUN = 3;
+  const cursor = settings.ingestCursor % Math.max(queries.length, 1);
+  const slice = [
+    ...queries.slice(cursor, cursor + QUERIES_PER_RUN),
+    ...queries.slice(0, Math.max(0, cursor + QUERIES_PER_RUN - queries.length)),
+  ];
+
+  await db
+    .update(settingsTable)
+    .set({ ingestCursor: (cursor + QUERIES_PER_RUN) % Math.max(queries.length, 1) })
+    .where(eq(settingsTable.id, 1));
+
   const { jobs: raw, results } = await fetchAllSources({
-    queries: queries.slice(0, 10),
+    queries: slice,
     countries,
     maxPerQuery: 50,
     discoveredBoards,
+    // Leave headroom for deduplication and the inserts that follow.
+    deadline: Date.now() + (opts.budgetMs ?? 35_000),
   });
 
   // Company ATS boards return their whole global board, so a Greenhouse feed
@@ -133,6 +159,7 @@ export async function runIngest(): Promise<IngestSummary> {
   }
 
   const summary: IngestSummary = {
+    queries: slice,
     fetched: raw.length,
     inserted,
     duplicates: raw.length - fresh.length - blocked - offCountry,

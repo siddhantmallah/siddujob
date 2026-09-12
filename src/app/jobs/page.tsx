@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { requireAuth } from "@/lib/auth";
-import { Shell } from "@/components/Nav";
+import { Shell, PageHead, EmptyState } from "@/components/Nav";
 import { ActionButton } from "@/components/Forms";
-import { ScorePill, VisaPill, SalaryText, SourceTag } from "@/components/JobBits";
+import { ScoreRing, VisaPill, SalaryText, SourceTag, placeLabel } from "@/components/JobBits";
 import { listJobs, type JobFilter } from "@/lib/queries";
 import { applyNow, skipJob, unskipJob, blockCompanyForJob, rescore } from "@/app/actions";
 
@@ -26,37 +26,50 @@ export default async function JobsPage({
 
   return (
     <Shell current="/jobs">
-      <div className="mb-4 flex flex-wrap gap-1.5">
-        {TABS.map((tab) => (
-          <Link
-            key={tab.key}
-            href={`/jobs?filter=${tab.key}`}
-            className="rounded-lg px-3 py-1.5 text-[12.5px] font-medium"
-            style={{
-              background: filter === tab.key ? "var(--panel)" : "transparent",
-              border: `1px solid ${filter === tab.key ? "var(--border)" : "transparent"}`,
-              color: filter === tab.key ? "var(--ink)" : "var(--muted)",
-            }}
-          >
-            {tab.label}
-          </Link>
-        ))}
+      <PageHead
+        title="Jobs"
+        subtitle={`${rows.length} shown · sorted by how well they match your CV`}
+      />
+
+      <div
+        className="mb-4 flex flex-wrap gap-1 rounded-xl p-1"
+        style={{ background: "var(--panel-2)", border: "1px solid var(--border)" }}
+      >
+        {TABS.map((tab) => {
+          const active = filter === tab.key;
+          return (
+            <Link
+              key={tab.key}
+              href={`/jobs?filter=${tab.key}`}
+              prefetch
+              className="rounded-lg px-3 py-1.5 text-[12.5px] font-medium transition-colors"
+              style={{
+                background: active ? "var(--panel)" : "transparent",
+                color: active ? "var(--ink)" : "var(--muted)",
+                boxShadow: active ? "var(--shadow-sm)" : undefined,
+              }}
+            >
+              {tab.label}
+            </Link>
+          );
+        })}
       </div>
 
       {rows.length === 0 ? (
-        <div className="panel p-8 text-center">
-          <p className="text-[13px]" style={{ color: "var(--muted)" }}>
-            {filter === "top"
-              ? "No matches waiting. Run discovery from the dashboard, or lower your keep threshold in Settings."
-              : "Nothing here."}
-          </p>
-        </div>
+        <EmptyState
+          title={filter === "top" ? "No matches waiting" : "Nothing here"}
+          body={
+            filter === "top"
+              ? "Run Find jobs from the dashboard, or lower your keep threshold in Settings if you want to see weaker matches."
+              : "Nothing falls into this view yet."
+          }
+        />
       ) : (
         <ul className="space-y-2.5">
           {rows.map(({ job, applicationId, applicationStatus }) => (
-            <li key={job.id} className="panel p-4">
+            <li key={job.id} className="panel-row p-4">
               <div className="flex flex-wrap items-start gap-2.5">
-                <ScorePill score={job.score} />
+                <ScoreRing score={job.score} />
 
                 <div className="min-w-0 flex-1">
                   <a
@@ -69,7 +82,7 @@ export default async function JobsPage({
                   </a>
                   <div className="mt-0.5 text-[12.5px]" style={{ color: "var(--muted)" }}>
                     <span className="font-medium" style={{ color: "var(--ink)" }}>{job.company}</span>
-                    {" · "}{job.location || job.country.toUpperCase() || "location unknown"}
+                    {" · "}{placeLabel(job)}
                     {job.remote ? " · remote" : ""}
                     {" · "}<SalaryText job={job} />
                   </div>
@@ -144,8 +157,8 @@ export default async function JobsPage({
                   href={job.applyUrl || job.url}
                   target="_blank"
                   rel="noreferrer noopener"
-                  className="btn"
-                  style={{ padding: "5px 9px", fontSize: 12, marginLeft: "auto" }}
+                  className="btn btn-sm"
+                  style={{ marginLeft: "auto" }}
                 >
                   Open advert
                 </a>

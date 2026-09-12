@@ -1,7 +1,7 @@
 import { requireAuth } from "@/lib/auth";
-import { Shell } from "@/components/Nav";
+import { Shell, PageHead, EmptyState } from "@/components/Nav";
 import { ActionButton, Disclosure, CopyButton } from "@/components/Forms";
-import { ScorePill } from "@/components/JobBits";
+import { ScoreRing } from "@/components/JobBits";
 import { listApplications, repliesForApplications } from "@/lib/queries";
 import { setApplicationStatus, checkInboxNow } from "@/app/actions";
 import type { ApplicationStatus } from "@/db";
@@ -46,15 +46,12 @@ export default async function ApplicationsPage() {
 
   return (
     <Shell current="/applications">
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <h1 className="text-[15px] font-bold">Applications</h1>
-        <span className="text-[12px]" style={{ color: "var(--muted)" }}>
-          {rows.length} total · {queued.length} waiting on the browser worker
-        </span>
-        <div className="ml-auto">
-          <ActionButton action={checkInboxNow}>Check inbox now</ActionButton>
-        </div>
-      </div>
+      <PageHead
+        title="Applications"
+        subtitle={`${rows.length} total · ${queued.length} waiting on the browser worker`}
+      >
+        <ActionButton action={checkInboxNow}>Check inbox now</ActionButton>
+      </PageHead>
 
       {queued.length > 0 && (
         <div className="panel mb-5 p-4" style={{ borderColor: "var(--accent)" }}>
@@ -68,19 +65,18 @@ export default async function ApplicationsPage() {
       )}
 
       {rows.length === 0 ? (
-        <div className="panel p-8 text-center">
-          <p className="text-[13px]" style={{ color: "var(--muted)" }}>
-            Nothing sent yet.
-          </p>
-        </div>
+        <EmptyState
+          title="Nothing sent yet"
+          body="Applications appear here the moment one goes out, along with any reply and what it means."
+        />
       ) : (
         <ul className="space-y-2.5">
           {rows.map(({ application, job }) => {
             const appReplies = repliesByApp.get(application.id) ?? [];
             return (
-              <li key={application.id} className="panel p-4">
+              <li key={application.id} className="panel-row p-4">
                 <div className="flex flex-wrap items-start gap-2.5">
-                  <ScorePill score={job.score} />
+                  <ScoreRing score={job.score} />
 
                   <div className="min-w-0 flex-1">
                     <a

@@ -41,6 +41,7 @@ export const adzuna: JobSource = {
         // staff, and they are where every match so far has come from. Reading
         // several pages deep matters more here than on any other source.
         for (let page = 1; page <= ADZUNA_PAGES; page++) {
+          if (ctx.deadline && Date.now() > ctx.deadline) return out;
           const params = new URLSearchParams({
             app_id: process.env.ADZUNA_APP_ID!,
             app_key: process.env.ADZUNA_APP_KEY!,

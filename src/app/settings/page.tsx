@@ -1,6 +1,6 @@
 import { requireAuth } from "@/lib/auth";
 import { getSettings } from "@/db";
-import { Shell } from "@/components/Nav";
+import { Shell, PageHead } from "@/components/Nav";
 import { ActionForm, SubmitButton, ActionButton } from "@/components/Forms";
 import { saveSettings, syncSponsorsNow, testEmail } from "@/app/actions";
 import { sponsorRegisterReady } from "@/pipeline/sponsors";
@@ -16,7 +16,7 @@ export default async function SettingsPage() {
 
   return (
     <Shell current="/settings">
-      <h1 className="mb-5 text-[15px] font-bold">Settings</h1>
+      <PageHead title="Settings" subtitle="How hard the automator works, and what it refuses to touch." />
 
       <ActionForm action={saveSettings} className="space-y-5">
         <section className="panel p-5">
