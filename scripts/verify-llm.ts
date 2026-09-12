@@ -91,17 +91,21 @@ No prior experience required, full training given. Salary GBP 22,000.`,
   }),
 ];
 
+// $ per million tokens. Cache reads are 0.1x base input. Cache WRITES are
+// 1.25x for a 5-minute TTL and 2x for a 1-hour one — the app uses 1h, so the
+// write multiplier here is 2x and the break-even is three requests, not two.
 const PRICE: Record<string, { in: number; out: number; cacheRead: number }> = {
   "claude-opus-5": { in: 5, out: 25, cacheRead: 0.5 },
   "claude-sonnet-5": { in: 2, out: 10, cacheRead: 0.2 },
 };
+const CACHE_WRITE_MULTIPLIER = 2; // 1-hour TTL
 
 function costOf(model: string) {
   const usage = usageTotals();
   const p = PRICE[model] ?? PRICE["claude-opus-5"];
   const dollars =
     (usage.inputTokens / 1e6) * p.in +
-    (usage.cacheWriteTokens / 1e6) * p.in * 1.25 +
+    (usage.cacheWriteTokens / 1e6) * p.in * CACHE_WRITE_MULTIPLIER +
     (usage.cacheReadTokens / 1e6) * p.cacheRead +
     (usage.outputTokens / 1e6) * p.out;
   return { usage, dollars };

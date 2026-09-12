@@ -3,7 +3,7 @@ dotenv.config({ override: true, quiet: true });
 import { sql, desc, eq } from "drizzle-orm";
 import { db, jobs, getSettings } from "../src/db";
 import { runScoring } from "../src/pipeline/score";
-import { usageTotals, MODEL } from "../src/lib/llm";
+import { usageTotals, estimateCost, BULK_MODEL } from "../src/lib/llm";
 
 /** Scores the next N best-ranked unscored jobs. Does not reset anything. */
 (async () => {
@@ -25,6 +25,10 @@ import { usageTotals, MODEL } from "../src/lib/llm";
   }
   console.log(`\nscored ${s.scored}  kept ${s.keptAboveThreshold}  visa-blocked ${s.visaBlocked}  early-rejected ${s.skippedEarly}  errors ${s.errors}`);
   console.log(`total matches now: ${kept.length}`);
-  console.log(`${MODEL}: ${u.calls} calls, cache-read ${u.cacheReadTokens}, fresh-in ${u.inputTokens}, out ${u.outputTokens}`);
+  const c = estimateCost(BULK_MODEL);
+  console.log(`
+${BULK_MODEL}: ${u.calls} calls`);
+  console.log(`  fresh input ${u.inputTokens.toLocaleString("en-GB")}   cache read ${u.cacheReadTokens.toLocaleString("en-GB")}   cache write ${u.cacheWriteTokens.toLocaleString("en-GB")}   output ${u.outputTokens.toLocaleString("en-GB")}`);
+  console.log(`  cost ${c.spent.toFixed(4)}   without caching ${c.withoutCaching.toFixed(4)}   saved ${c.savedPercent}%`);
   process.exit(0);
 })().catch((e) => { console.error(e); process.exit(1); });

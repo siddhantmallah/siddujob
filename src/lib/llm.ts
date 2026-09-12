@@ -53,8 +53,22 @@ export type Effort = "low" | "medium" | "high" | "xhigh" | "max";
  *   30 jobs that turns 30 full-price CV reads into 1.
  */
 
-/** A system prompt segment. `cache: true` marks a caching breakpoint after it. */
-export type SystemBlock = { text: string; cache?: boolean };
+/**
+ * A system prompt segment. `cache: true` marks a caching breakpoint after it.
+ *
+ * TTL is chosen by the gap between requests that share the prefix, not by how
+ * long the content stays valid:
+ *
+ *   under 5 min   → "5m": every request refreshes the timer, and the write is
+ *                   cheaper (1.25x vs 2x)
+ *   5 to 60 min   → "1h": the only window where the doubled write price pays
+ *   over an hour  → neither helps; expect a cold miss
+ *
+ * The scheduler here fires every 30 minutes, which is squarely the middle case,
+ * so "1h" is the default. A read refreshes the timer for free, so with that
+ * cadence the prefix stays warm indefinitely off a single write.
+ */
+export type SystemBlock = { text: string; cache?: boolean; ttl?: "5m" | "1h" };
 
 function toSystemParam(
   system: string | SystemBlock[],
@@ -65,8 +79,31 @@ function toSystemParam(
     .map((b) => ({
       type: "text" as const,
       text: b.text,
-      ...(b.cache ? { cache_control: { type: "ephemeral" as const } } : {}),
+      ...(b.cache
+        ? { cache_control: { type: "ephemeral" as const, ttl: b.ttl ?? "1h" } }
+        : {}),
     }));
+}
+
+/**
+ * Below this a marked prefix silently will not cache — no error, just
+ * cache_creation_input_tokens of 0. Model-dependent and NOT monotonic across
+ * generations, so it has to be looked up rather than assumed.
+ */
+export const CACHE_MINIMUM_TOKENS: Record<string, number> = {
+  "claude-opus-5": 512,
+  "claude-fable-5-1": 512,
+  "claude-fable-5": 512,
+  "claude-sonnet-5": 1024,
+  "claude-opus-4-8": 1024,
+  "claude-sonnet-4-6": 1024,
+  "claude-opus-4-7": 2048,
+  "claude-opus-4-6": 4096,
+  "claude-haiku-4-5": 4096,
+};
+
+export function cacheMinimumFor(model: string): number {
+  return CACHE_MINIMUM_TOKENS[model] ?? 1024;
 }
 
 /**
@@ -122,6 +159,51 @@ function record(usage: Anthropic.Usage | undefined): void {
 /** Token usage since the process started. Useful for seeing what a run costs. */
 export function usageTotals(): Readonly<UsageTotals> {
   return { ...totals };
+}
+
+/** $ per million tokens, base input and output. */
+const PRICING: Record<string, { in: number; out: number }> = {
+  "claude-opus-5": { in: 5, out: 25 },
+  "claude-sonnet-5": { in: 2, out: 10 },
+  "claude-haiku-4-5": { in: 1, out: 5 },
+};
+
+/**
+ * What the run so far actually cost, and what it would have cost with no
+ * caching — the second figure is the only way to know whether the breakpoints
+ * are earning their keep.
+ *
+ * Cache reads bill at 0.1x base input. Cache writes bill at 2x on the 1-hour
+ * TTL this app uses, so the break-even is three requests sharing a prefix, not
+ * two. A scoring run does twenty or more, which is why it pays here.
+ */
+export function estimateCost(model: string): {
+  spent: number;
+  withoutCaching: number;
+  saved: number;
+  savedPercent: number;
+} {
+  const price = PRICING[model] ?? PRICING["claude-opus-5"];
+  const { inputTokens, outputTokens, cacheWriteTokens, cacheReadTokens } = totals;
+
+  const spent =
+    (inputTokens / 1e6) * price.in +
+    (cacheWriteTokens / 1e6) * price.in * 2 +
+    (cacheReadTokens / 1e6) * price.in * 0.1 +
+    (outputTokens / 1e6) * price.out;
+
+  // Without caching every cached token would have been billed as fresh input.
+  const withoutCaching =
+    ((inputTokens + cacheWriteTokens + cacheReadTokens) / 1e6) * price.in +
+    (outputTokens / 1e6) * price.out;
+
+  const saved = withoutCaching - spent;
+  return {
+    spent,
+    withoutCaching,
+    saved,
+    savedPercent: withoutCaching > 0 ? Math.round((saved / withoutCaching) * 100) : 0,
+  };
 }
 
 export function resetUsage(): void {
