@@ -14,6 +14,8 @@
     "dev": "next dev",
     "jobs:cleanup": "tsx scripts/cleanup.ts",
     "jobs:discover": "tsx scripts/discover-once.ts",
+    "jobs:geocheck": "tsx scripts/geo-check.ts",
+    "jobs:resolve": "tsx scripts/resolve-urls.ts",
     "jobs:revisa": "tsx scripts/revisa.ts",
     "jobs:score": "tsx scripts/score-diag.ts",
     "lint": "next lint",

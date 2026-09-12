@@ -305,6 +305,44 @@ async function hasBlocker(page: Page): Promise<string | null> {
   return null;
 }
 
+/* ──────────────────────────── browser ──────────────────────────── */
+
+/**
+ * Prefer a browser already on the machine.
+ *
+ * `playwright install` pulls a ~150 MB Chromium build, which times out on a
+ * slow or filtered connection and blocks the whole worker. Chrome and Edge are
+ * already present on virtually every Windows machine and drive identically
+ * through the same CDP protocol, so borrowing one removes the download from
+ * the critical path. The bundled build stays as the last resort.
+ */
+async function launchBrowser(): Promise<Browser> {
+  const attempts: Array<{ what: string; channel?: "chrome" | "msedge" }> = [
+    { what: "installed Chrome", channel: "chrome" },
+    { what: "installed Edge", channel: "msedge" },
+    { what: "bundled Chromium" },
+  ];
+
+  const problems: string[] = [];
+  for (const attempt of attempts) {
+    try {
+      const browser = await chromium.launch({
+        headless: !HEADED,
+        ...(attempt.channel ? { channel: attempt.channel } : {}),
+      });
+      console.log(`browser: ${attempt.what}`);
+      return browser;
+    } catch (err) {
+      problems.push(`${attempt.what}: ${(err as Error).message.split("\n")[0].slice(0, 90)}`);
+    }
+  }
+
+  throw new Error(
+    `No browser could be launched.\n  ${problems.join("\n  ")}\n\n` +
+      "Install Google Chrome, or run: npx playwright install chromium",
+  );
+}
+
 /* ──────────────────────────── main ─────────────────────────────── */
 
 async function processOne(
@@ -435,7 +473,7 @@ async function main(): Promise<void> {
   const shotDir = join(process.cwd(), ".worker-data");
   mkdirSync(shotDir, { recursive: true });
 
-  const browser = await chromium.launch({ headless: !HEADED });
+  const browser = await launchBrowser();
   try {
     for (const item of work) {
       await processOne(browser, profile, item, cvPath, shotDir);

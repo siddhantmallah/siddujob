@@ -2,6 +2,7 @@ import { inArray, eq } from "drizzle-orm";
 import { db, jobs, settings as settingsTable, getProfile, getSettings, logEvent, type NewJob } from "@/db";
 import { fetchAllSources, type SourceResult } from "@/sources";
 import { confirmedBoards } from "./atsdiscovery";
+import { applyPathReachable } from "./resolve";
 import { jobHash, normalizeCompany, extractContactEmail, truncate, toInt } from "@/lib/utils";
 
 /** Fallback searches if you have not filled in target titles yet. */
@@ -176,9 +177,17 @@ export async function runIngest(opts: { budgetMs?: number } = {}): Promise<Inges
   return summary;
 }
 
-/** Ranks two versions of the same posting — richer record wins. */
+/**
+ * Ranks two versions of the same posting.
+ *
+ * Reachability outranks richness: Adzuna often carries the fullest record, but
+ * geo-blocks its apply page from outside the advertised country, so that record
+ * is worthless for actually applying. When the same role appears on Reed or an
+ * ATS board, take that one even if it carries less detail.
+ */
 function score(j: NewJob): number {
   let n = 0;
+  if (applyPathReachable(j.source!)) n += 25;
   if (j.atsType) n += 10;          // direct ATS beats any aggregator
   if (j.contactEmail) n += 6;      // an email means we can actually auto-send
   if (j.salaryMin || j.salaryMax) n += 4;

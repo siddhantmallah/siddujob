@@ -8,6 +8,7 @@ import { coverLetterPdf } from "@/lib/pdf";
 import { notify } from "@/lib/notify";
 import { startOfTodayUtc, truncate } from "@/lib/utils";
 import { generateCoverLetter, composeEmailBody } from "./generate";
+import { applyPathReachable } from "./resolve";
 
 /** Per-invocation ceiling, independent of the daily cap, to fit the time limit. */
 const MAX_PER_RUN = 6;
@@ -34,6 +35,11 @@ async function sentToday(): Promise<number> {
 export function routeFor(job: Job): { channel: ApplyChannel; target?: string } {
   if (job.contactEmail && mailConfigured()) {
     return { channel: "email", target: job.contactEmail };
+  }
+  // A worker sent at a geo-blocked page only ever sees the regional notice, so
+  // it goes to the manual queue with an honest reason instead.
+  if (!applyPathReachable(job.source) && !job.applyUrl) {
+    return { channel: "manual", target: job.url };
   }
   // Everything else needs a form filled in a browser. The local worker does
   // that; until it runs, the job sits in the queue with its letter ready.

@@ -7,7 +7,7 @@ cannot hire you**, scores what is left against your actual CV, writes a tailored
 cover letter, sends the application, watches your inbox for the reply, and
 pings your phone the moment someone says yes.
 
-**→ Start with [SETUP.md](SETUP.md).**
+**→ Start with [SETUP.md](SETUP.md), then [SCHEDULING.md](SCHEDULING.md) to make it run on its own.**
 
 ---
 
@@ -73,6 +73,9 @@ offers alert you immediately, with a draft reply.
   your account. The sources here are APIs meant to be consumed.
 - **Auto-send covers email and the browser worker.** Everything else needs a
   click from you.
+- **Adzuna geo-blocks its apply pages.** Its listings are readable worldwide but
+  the employer form is not, so the pipeline resolves those roles to a reachable
+  link on Reed before queueing anything. See [SCHEDULING.md](SCHEDULING.md).
 - **The worker refuses to guess.** Salary expectations, notice period, "why do
   you want to work here" — it stops and hands the job back. A wrong answer
   under your name is worse than a slow one.

@@ -2,6 +2,7 @@ import { db, logEvent } from "@/db";
 import { sql } from "drizzle-orm";
 import { runIngest, type IngestSummary } from "./ingest";
 import { runScoring, type ScoreSummary } from "./score";
+import { resolveApplyUrls, type ResolveSummary } from "./resolve";
 import { runAutoApply, type ApplySummary } from "./apply";
 import { runInboxCheck, type InboxSummary } from "./inbox";
 import { sponsorRegisterReady, syncSponsorRegister } from "./sponsors";
@@ -10,6 +11,7 @@ import { notifyRunSummary } from "@/lib/notify";
 export type FullRunSummary = {
   ingest?: IngestSummary;
   score?: ScoreSummary;
+  resolve?: ResolveSummary;
   apply?: ApplySummary;
   inbox?: InboxSummary;
   sponsorSync?: { ok: boolean; rowCount: number; error?: string };
@@ -35,10 +37,13 @@ export async function runDiscovery(): Promise<FullRunSummary> {
 
   const ingest = await runIngest();
   const score = await runScoring();
+  // Give surviving jobs a link that works from here before any of them can be
+  // queued against a page this location cannot open.
+  const resolve = await resolveApplyUrls();
 
   await db.execute(sql`update settings set last_ingest_at = now() where id = 1`);
 
-  return { ingest, score, sponsorSync, ms: Date.now() - started };
+  return { ingest, score, resolve, sponsorSync, ms: Date.now() - started };
 }
 
 export async function runApplyPass(): Promise<FullRunSummary> {
