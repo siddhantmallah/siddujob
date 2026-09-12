@@ -126,8 +126,12 @@ export function preScore(job: Job, profile: Profile): { value: number; notes: st
     else if (days > 30) score -= 10;
   }
 
-  // Direct ATS postings convert far better than aggregator reposts.
-  if (job.atsType) score += 6;
+  // No source bonus. An earlier version added +6 for direct-ATS postings on the
+  // assumption they convert better. Measured over 180 scored adverts that was
+  // simply wrong for this profile: 118 ATS jobs produced zero matches (best
+  // score 40) while every match came from an aggregator. The bonus was pushing
+  // tech-startup SRE roles ahead of the enterprise Windows roles that fit.
+  // Rank on fit alone and let the source fall out of the result.
 
   return { value: clamp(score, 0, 100), notes };
 }

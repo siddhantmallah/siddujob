@@ -103,8 +103,22 @@ What you SHOULD do freely:
 
 British English. Plain text, simple headings, no markdown syntax, no tables. Keep it to two pages of content.`;
 
+/**
+ * Facts the candidate has explicitly confirmed in answer to a gap question.
+ *
+ * These are the ONLY route by which new claims may enter a CV. They come from
+ * the person whose name is on it, which is the only authority that counts —
+ * the model may never promote a guess into this list.
+ */
+export type ConfirmedFacts = {
+  confirmed: string[];
+  /** Explicitly denied. Must never appear in the CV, however tempting. */
+  denied: string[];
+};
+
 export async function rewriteCv(
   existingAnalysis?: CvAnalysis,
+  facts?: ConfirmedFacts,
 ): Promise<CvRewrite & { analysis: CvAnalysis }> {
   const profile = await getProfile();
   if (!profile.cvText?.trim()) {
@@ -139,7 +153,16 @@ ${analysis.strengths.map((s) => `- ${s}`).join("\n")}
 ${gapSummary}
 </repeated_gaps>
 
-Rewrite the CV for the roles the positioning says are genuinely winnable. Apply every change that needs no new information. Everything else becomes a question.`,
+${
+      facts?.confirmed.length
+        ? `\nThe candidate has since CONFIRMED the following, in answer to direct questions. Treat each as established fact and work it into the CV where it earns its place — these are the additions that close the gaps above:\n\n${facts.confirmed.map((f) => `- ${f}`).join("\n")}\n`
+        : ""
+    }${
+      facts?.denied.length
+        ? `\nThe candidate has explicitly DENIED the following. These must NOT appear anywhere in the CV, must not be implied, and must not be hedged in:\n\n${facts.denied.map((f) => `- ${f}`).join("\n")}\n`
+        : ""
+    }
+Rewrite the CV for the roles the positioning says are genuinely winnable. Apply every change that needs no new information, plus every confirmed fact above. Anything still unresolved becomes a question.`,
     toolName: "record_cv_rewrite",
     toolDescription: "Record the rewritten CV and the reasoning behind it.",
     schema: SCHEMA as unknown as Record<string, unknown>,

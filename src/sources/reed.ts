@@ -17,6 +17,9 @@ type ReedSearch = {
   }>;
 };
 
+/** Pages of 100 to read per query. Reed is UK-only, so depth pays here. */
+const REED_PAGES = 3;
+
 /** Reed uses HTTP Basic with the API key as the username and a blank password. */
 function authHeader(): string {
   return "Basic " + Buffer.from(`${process.env.REED_API_KEY}:`).toString("base64");
@@ -43,20 +46,32 @@ export const reed: JobSource = {
     const out: RawJob[] = [];
 
     for (const query of ctx.queries) {
-      const params = new URLSearchParams({
-        keywords: query,
-        resultsToTake: String(Math.min(ctx.maxPerQuery, 100)),
-        postedByRecruitmentAgency: "true",
-        postedByDirectEmployer: "true",
-      });
+      // Reed is UK-only and carries exactly the traditional employers this
+      // search targets, so it is worth paging rather than taking the first
+      // hundred and moving on.
+      for (let page = 0; page < REED_PAGES; page++) {
+        const params = new URLSearchParams({
+          keywords: query,
+          resultsToTake: "100",
+          resultsToSkip: String(page * 100),
+          postedByRecruitmentAgency: "true",
+          postedByDirectEmployer: "true",
+        });
 
-      try {
-        const data = await fetchJson<ReedSearch>(
-          `https://www.reed.co.uk/api/1.0/search?${params}`,
-          { headers: { authorization: authHeader() } },
-        );
+        let data: ReedSearch;
+        try {
+          data = await fetchJson<ReedSearch>(
+            `https://www.reed.co.uk/api/1.0/search?${params}`,
+            { headers: { authorization: authHeader() } },
+          );
+        } catch (err) {
+          console.warn(`[reed] "${query}" p${page} failed:`, (err as Error).message);
+          break;
+        }
 
-        for (const r of data.results ?? []) {
+        if (!data.results?.length) break;
+
+        for (const r of data.results) {
           if (!r.jobTitle) continue;
           const location = r.locationName ?? "";
           const description = stripHtml(r.jobDescription ?? "");
@@ -77,8 +92,8 @@ export const reed: JobSource = {
             remote: isRemote(r.jobTitle, location, description),
           });
         }
-      } catch (err) {
-        console.warn(`[reed] "${query}" failed:`, (err as Error).message);
+
+        if (data.results.length < 100) break;
       }
     }
     return out;
