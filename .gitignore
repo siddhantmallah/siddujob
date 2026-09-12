@@ -33,3 +33,7 @@ Thumbs.db
 draft-applications.md
 confirmed-facts.json
 vercel-env.txt
+
+.vercel
+.vercel
+fix-vercel-env.cjs
