@@ -50,7 +50,20 @@ import Anthropic from "@anthropic-ai/sdk";
     }
   }
 
-  // 3. What is still outstanding before the pipeline can run end to end.
+  // 3. Malformed values. A key pasted across two lines still "works" locally
+  //    because dotenv joins them, then breaks the moment it is retyped into a
+  //    hosting dashboard — so catch it here rather than in production.
+  const malformed = Object.entries(process.env)
+    .filter(([key]) => /^(JOBFINDER_|DATABASE_|APP_|AUTH_|CRON_|ANTHROPIC_|GMAIL_|TELEGRAM_|ADZUNA_|REED_|JOOBLE_|GREENHOUSE_|LEVER_|ASHBY_)/.test(key))
+    .filter(([, value]) => value && (/[\r\n]/.test(value) || value !== value.trim()));
+
+  if (malformed.length) {
+    console.log("\nMALFORMED — these contain a newline or stray whitespace:");
+    for (const [key] of malformed) console.log(`  ${key}`);
+    console.log("  Put each value on a single line in .env and re-run.");
+  }
+
+  // 4. What is still outstanding before the pipeline can run end to end.
   const needed: Array<[string, string]> = [
     ["GMAIL_ADDRESS", "sending applications"],
     ["GMAIL_APP_PASSWORD", "sending + reply detection"],
