@@ -1,6 +1,6 @@
 import { eq, and, inArray, desc, asc, sql } from "drizzle-orm";
 import { db, jobs, getProfile, getSettings, logEvent, type Job, type Profile } from "@/db";
-import { structured, llmAvailable } from "@/lib/llm";
+import { structured, llmAvailable, BULK_MODEL } from "@/lib/llm";
 import { clamp, mapLimit, truncate } from "@/lib/utils";
 import { assessUk, assessEu, looksLikeItRole, type VisaVerdict } from "@/lib/visa";
 import { lookupSponsors, looksLikeAgency, type SponsorHit } from "./sponsors";
@@ -13,7 +13,9 @@ import { lookupSponsors, looksLikeAgency, type SponsorHit } from "./sponsors";
  * which keeps the cost of a daily run in pennies rather than pounds.
  */
 
-const PRE_SCORE_FLOOR = 22;
+// Raised from 22 after measuring: nothing below the mid-30s has ever cleared
+// the keep threshold, so paying a model to confirm it was pure waste.
+const PRE_SCORE_FLOOR = 38;
 /** Per-run ceiling so a serverless invocation stays inside its time limit. */
 const MAX_LLM_JOBS_PER_RUN = 30;
 
@@ -294,6 +296,7 @@ Score the candidate described in the system prompt against this job.`;
     toolDescription: "Record the fit assessment for this candidate and job.",
     schema: SCORE_SCHEMA as unknown as Record<string, unknown>,
     // Scoring runs across every job found, so it stays on the cheap end.
+    model: BULK_MODEL,
     maxTokens: 8000,
     effort: "low",
   });

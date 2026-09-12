@@ -127,7 +127,13 @@ export default async function JobsPage({
 
               <div className="mt-3 flex flex-wrap items-start gap-2">
                 {applicationId ? (
-                  <span className="pill pill-flat">applied · {applicationStatus}</span>
+                  applicationStatus === "queued" ? (
+                    <span className="pill pill-warn" title="Cover letter written. Nothing has been sent — this needs a form filled in a browser.">
+                      letter ready · not sent
+                    </span>
+                  ) : (
+                    <span className="pill pill-good">sent · {applicationStatus}</span>
+                  )
                 ) : (
                   <ActionButton action={applyNow.bind(null, job.id)} variant="primary" compact>
                     Write &amp; apply

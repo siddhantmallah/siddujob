@@ -5,7 +5,7 @@ import {
   db, applications, jobs, replies, logEvent,
   type ReplyKind, type ApplicationStatus,
 } from "@/db";
-import { structured, llmAvailable } from "@/lib/llm";
+import { structured, llmAvailable, BULK_MODEL } from "@/lib/llm";
 import { notify } from "@/lib/notify";
 import { truncate } from "@/lib/utils";
 
@@ -152,6 +152,7 @@ ${truncate(msg.body, 4000)}`,
       toolName: "classify_reply",
       toolDescription: "Record what this reply is.",
       schema: CLASSIFY_SCHEMA as unknown as Record<string, unknown>,
+      model: BULK_MODEL,
       maxTokens: 8000,
       effort: "low",
     });

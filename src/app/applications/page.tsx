@@ -9,7 +9,7 @@ import type { ApplicationStatus } from "@/db";
 export const dynamic = "force-dynamic";
 
 const STATUS_STYLE: Record<string, string> = {
-  queued: "pill-flat",
+  queued: "pill-warn",
   sent: "pill-flat",
   acknowledged: "pill-flat",
   replied: "pill-warn",
@@ -54,12 +54,22 @@ export default async function ApplicationsPage() {
       </PageHead>
 
       {queued.length > 0 && (
-        <div className="panel mb-5 p-4" style={{ borderColor: "var(--accent)" }}>
-          <div className="text-[13px] font-bold">{queued.length} applications ready to submit</div>
+        <div
+          className="panel mb-5 p-4"
+          style={{ borderColor: "color-mix(in srgb, var(--warn) 55%, var(--border))" }}
+        >
+          <div className="flex items-center gap-2">
+            <span className="pill pill-warn">not sent</span>
+            <span className="text-[13px] font-bold">
+              {queued.length} {queued.length === 1 ? "letter is" : "letters are"} written but nothing has been submitted
+            </span>
+          </div>
           <p className="hint">
-            These have finished cover letters but need a form filled in a browser, which Vercel
-            cannot do. Run <code className="font-mono">npm run worker</code> on your own machine and
-            it will submit them, or open each advert below and paste the letter in yourself.
+            None of these had a contact email — aggregators link to the employer's own
+            application form, and a form has to be filled in a browser, which Vercel cannot do.
+            Run <code className="font-mono">npm run worker</code> on your machine to submit them,
+            or open each advert below and paste the letter in yourself. Mark it
+            <strong> sent</strong> here once you have.
           </p>
         </div>
       )}
@@ -96,7 +106,7 @@ export default async function ApplicationsPage() {
                   </div>
 
                   <span className={`pill ${STATUS_STYLE[application.status] ?? "pill-flat"}`}>
-                    {application.status}
+                    {application.status === "queued" ? "not sent" : application.status}
                   </span>
                   {application.autonomous && <span className="pill pill-flat">auto</span>}
                 </div>
