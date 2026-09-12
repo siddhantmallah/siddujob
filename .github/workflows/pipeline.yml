@@ -1,0 +1,38 @@
+# Vercel's Hobby plan only runs cron ONCE PER DAY. GitHub Actions is free and
+# runs every 30 minutes, so this is the real scheduler. vercel.json is a backup.
+#
+# Set two repo secrets (Settings > Secrets and variables > Actions):
+#   APP_URL      https://your-app.vercel.app
+#   CRON_SECRET  same value as the CRON_SECRET env var on Vercel
+name: job pipeline
+
+on:
+  schedule:
+    - cron: "*/30 * * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: job-pipeline
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ingest new jobs
+        run: |
+          curl -sS --fail-with-body -m 120 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.APP_URL }}/api/cron/ingest" | tee /dev/stderr
+
+      - name: Score + auto-apply
+        run: |
+          curl -sS --fail-with-body -m 120 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.APP_URL }}/api/cron/apply" | tee /dev/stderr
+
+      - name: Check inbox for replies
+        run: |
+          curl -sS --fail-with-body -m 120 \
+            -H "Authorization: Bearer ${{ secrets.CRON_SECRET }}" \
+            "${{ secrets.APP_URL }}/api/cron/inbox" | tee /dev/stderr

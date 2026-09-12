@@ -1,0 +1,32 @@
+# ─── secrets: never commit, git history is permanent ───
+.env
+.env.*
+!.env.example
+.secrets-generated.txt
+
+# ─── personal data: regenerable, and not the repo's business ───
+CV-revised.txt
+CV-revision-notes.md
+cv-original-backup.txt
+*.pdf
+
+# ─── build + tooling ───
+node_modules
+.next
+out
+.vercel
+drizzle/meta
+*.tsbuildinfo
+next-env.d.ts
+
+# ─── worker output ───
+.worker-data
+playwright-report
+test-results
+
+# ─── os / editor ───
+*.log
+.DS_Store
+Thumbs.db
+.idea
+.vscode

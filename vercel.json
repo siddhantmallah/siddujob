@@ -1,0 +1,12 @@
+{
+  "crons": [
+    { "path": "/api/cron/ingest", "schedule": "0 6 * * *" },
+    { "path": "/api/cron/apply", "schedule": "0 7 * * *" },
+    { "path": "/api/cron/inbox", "schedule": "0 8 * * *" }
+  ],
+  "functions": {
+    "src/app/api/cron/ingest/route.ts": { "maxDuration": 60 },
+    "src/app/api/cron/apply/route.ts": { "maxDuration": 60 },
+    "src/app/api/cron/inbox/route.ts": { "maxDuration": 60 }
+  }
+}
