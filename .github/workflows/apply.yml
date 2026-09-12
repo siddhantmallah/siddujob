@@ -1,0 +1,103 @@
+# Submits the queued applications.
+#
+# Vercel cannot run a browser, and most employers want a form filled rather
+# than an email — so this is where applications actually get sent. It runs on
+# GitHub's Ubuntu runners, which means it works whether or not your own machine
+# is switched on. That is the difference between a drafting tool and automation.
+#
+# Repo secrets required (Settings > Secrets and variables > Actions):
+#   APP_URL       https://siddujob.vercel.app
+#   CRON_SECRET   same value as on Vercel
+#
+# Repo VARIABLE that arms live submission (Variables tab, not Secrets):
+#   WORKER_SUBMIT  set to "true" to send for real
+#
+# Until WORKER_SUBMIT is "true" every run is a dry run: forms are filled,
+# screenshots are uploaded as artifacts, and nothing is submitted. Look at a
+# dry run before arming it.
+name: submit applications
+
+on:
+  schedule:
+    # Four times a day on the hour. Applications arriving in a burst at 03:00
+    # look automated; spread through the working day they do not.
+    - cron: "0 8,11,14,17 * * *"
+  workflow_dispatch:
+    inputs:
+      submit:
+        description: "Actually submit (otherwise dry run)"
+        type: boolean
+        default: false
+      limit:
+        description: "How many applications to process"
+        type: string
+        default: "5"
+
+concurrency:
+  group: submit-applications
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Cached between runs, so only the first run pays the download.
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        id: playwright-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+
+      - name: Install Chromium
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Install system deps
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps chromium
+
+      - name: Decide mode
+        id: mode
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            WANT="${{ inputs.submit }}"
+            LIMIT="${{ inputs.limit }}"
+          else
+            WANT="${{ vars.WORKER_SUBMIT }}"
+            LIMIT="5"
+          fi
+          if [ "$WANT" = "true" ]; then
+            echo "flags=--submit --limit=$LIMIT" >> "$GITHUB_OUTPUT"
+            echo "::notice::LIVE — applications will be submitted"
+          else
+            echo "flags=--limit=$LIMIT" >> "$GITHUB_OUTPUT"
+            echo "::notice::Dry run — forms filled, nothing submitted. Set the WORKER_SUBMIT repo variable to 'true' to go live."
+          fi
+
+      - name: Run the worker
+        env:
+          APP_URL: ${{ secrets.APP_URL }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: npx tsx worker/apply-worker.ts ${{ steps.mode.outputs.flags }}
+
+      # The screenshots are the record of what was actually filled and sent.
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: application-screenshots
+          path: .worker-data/
+          retention-days: 14
+          if-no-files-found: ignore

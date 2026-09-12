@@ -234,6 +234,54 @@ async function dismissCookieBanner(page: Page): Promise<void> {
   }
 }
 
+/**
+ * Aggregators do not link to the employer — they link to their own landing
+ * page, and put the real destination behind JavaScript. Measured: zero of six
+ * Adzuna links exposed an onward URL in raw HTML. So the first job is to click
+ * through to wherever the employer actually takes applications, which may open
+ * in a new tab.
+ */
+const AGGREGATOR = /adzuna\.|reed\.co\.uk|indeed\.|totaljobs\.|cv-library\.|jobsite\.|monster\.|glassdoor\.|jobbird|stepstone/i;
+
+async function followToEmployer(page: Page): Promise<Page> {
+  if (!AGGREGATOR.test(page.url())) return page;
+
+  const context = page.context();
+  const before = page.url();
+
+  const applyButton = page
+    .getByRole("link", { name: /apply (now|for this|on)|apply$|view job|continue to/i })
+    .or(page.getByRole("button", { name: /apply (now|for this|on)|apply$|continue to/i }))
+    .first();
+
+  if (!(await applyButton.isVisible().catch(() => false))) {
+    return page;
+  }
+
+  // The click may navigate this tab or open a new one; handle both.
+  const popupPromise = context.waitForEvent("page", { timeout: 15_000 }).catch(() => null);
+  await applyButton.click({ timeout: 12_000 }).catch(() => {});
+  const popup = await popupPromise;
+
+  if (popup) {
+    await popup.waitForLoadState("domcontentloaded", { timeout: 30_000 }).catch(() => {});
+    console.log(`  followed to ${safeHost(popup.url())} (new tab)`);
+    return popup;
+  }
+
+  await page.waitForLoadState("domcontentloaded", { timeout: 30_000 }).catch(() => {});
+  if (page.url() !== before) console.log(`  followed to ${safeHost(page.url())}`);
+  return page;
+}
+
+function safeHost(url: string): string {
+  try {
+    return new URL(url).hostname;
+  } catch {
+    return url.slice(0, 40);
+  }
+}
+
 /** Some boards hide the form behind an "Apply for this job" button. */
 async function revealForm(page: Page): Promise<void> {
   const trigger = page.getByRole("button", { name: /apply for this job|apply now|start application/i }).first();
@@ -277,26 +325,30 @@ async function processOne(
   try {
     await page.goto(item.url, { waitUntil: "domcontentloaded", timeout: 45_000 });
     await page.waitForTimeout(1500);
-
     await dismissCookieBanner(page);
-    await revealForm(page);
 
-    const blocker = await hasBlocker(page);
+    // An aggregator link lands on its own page, not the employer's form.
+    const active = await followToEmployer(page);
+    if (active !== page) await active.waitForTimeout(1500);
+    await dismissCookieBanner(active);
+    await revealForm(active);
+
+    const blocker = await hasBlocker(active);
     if (blocker) {
       console.log(`  ⊘ ${blocker} — handing back to you`);
       await report(item.applicationId, "needs_human", { note: blocker });
       return;
     }
 
-    const { filled, unanswered } = await fillForm(page, profile, item, cvPath);
+    const { filled, unanswered } = await fillForm(active, profile, item, cvPath);
     console.log(`  filled: ${filled.join(", ") || "nothing"}`);
 
     const shot = join(shotDir, `app-${item.applicationId}.png`);
-    await page.screenshot({ path: shot, fullPage: true }).catch(() => {});
+    await active.screenshot({ path: shot, fullPage: true }).catch(() => {});
 
     if (!filled.includes("email")) {
       console.log("  ⊘ could not find an email field — this is not a standard form");
-      await report(item.applicationId, "needs_human", { note: "No recognisable application form found" });
+      await report(item.applicationId, "needs_human", { note: `No recognisable form at ${safeHost(active.url())}` });
       return;
     }
 
@@ -309,7 +361,7 @@ async function processOne(
       return;
     }
 
-    const submit = await findSubmit(page);
+    const submit = await findSubmit(active);
     if (!submit) {
       console.log("  ⊘ no submit button found");
       await report(item.applicationId, "needs_human", { note: "No submit button found" });
@@ -323,12 +375,12 @@ async function processOne(
     }
 
     await submit.click({ timeout: 15_000 });
-    await page.waitForTimeout(4000);
+    await active.waitForTimeout(4000);
 
-    const after = (await page.locator("body").innerText().catch(() => "")).toLowerCase();
+    const after = (await active.locator("body").innerText().catch(() => "")).toLowerCase();
     const confirmed = /thank you|application (has been )?(received|submitted|sent)|we.{0,10}(have|ve) received|successfully applied|application complete/.test(after);
 
-    await page.screenshot({ path: join(shotDir, `app-${item.applicationId}-after.png`), fullPage: true }).catch(() => {});
+    await active.screenshot({ path: join(shotDir, `app-${item.applicationId}-after.png`), fullPage: true }).catch(() => {});
 
     if (confirmed) {
       console.log("  ✓ submitted and confirmed");
